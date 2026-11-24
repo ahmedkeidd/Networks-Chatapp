@@ -19,7 +19,6 @@
   },
   "homepage": "https://github.com/ahmedkeidd/Networks-Chatapp#readme",
   "dependencies": {
-    "better-sqlite3": "^13.2.0",
     "express": "^5.3.0",
     "ws": "^8.23.0"
   }
