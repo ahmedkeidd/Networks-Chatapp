@@ -1,5 +1,6 @@
 const { WebSocketServer } = require('ws');
 const db = require('./db');
+const metrics = require('./metrics');
 
 const clients = new Map(); // username -> socket
 
@@ -11,6 +12,7 @@ function startWsServer(server) {
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (socket) => {
+    metrics.connectionOpened();
     let user = null;
 
     socket.on('message', (raw) => {
@@ -56,6 +58,7 @@ function startWsServer(server) {
       if (msg.type === 'message') {
         const saved = db.saveMessage({ ...msg, from: user });
         if (!saved) return; // duplicate, ignore
+        metrics.messageSent();
         send(socket, { type: 'ack', id: saved.id, seq: saved.seq });
 
         if (saved.room) {
@@ -71,7 +74,10 @@ function startWsServer(server) {
       }
     });
 
-    socket.on('close', () => { if (user) clients.delete(user); });
+    socket.on('close', () => {
+      metrics.connectionClosed();
+      if (user) clients.delete(user);
+    });
     socket.on('error', () => { if (user) clients.delete(user); });
   });
 }
