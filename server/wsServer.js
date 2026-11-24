@@ -3,109 +3,138 @@ const db = require('./db');
 const metrics = require('./metrics');
 const protocols = require('./protocols');
 
-const clients = new Map();
+const MAX_TEXT = 4000;
+const clients = new Map(); // username -> Set of client objects (one per device)
 
+// Encode with the client's own protocol and send
 function send(client, packet) {
   if (client.socket.readyState !== 1) return;
   for (const out of client.codec.encode(packet)) {
     client.socket.send(out);
-    metrics.bytesSent(Buffer.byteLength(out));
+    metrics.bytesSent(client.codec.name, Buffer.byteLength(out));
   }
+}
+
+const fail = (client, text) => { metrics.error(); send(client, { type: 'error', text }); };
+
+// Send to every device of a user, optionally skipping the originating socket
+function deliver(username, packet, except) {
+  for (const c of clients.get(username) || []) {
+    if (c === except) continue;
+    send(c, packet);
+    metrics.messageDelivered();
+  }
+}
+
+function addClient(client, user) {
+  client.user = user;
+  if (!clients.has(user)) clients.set(user, new Set());
+  clients.get(user).add(client);
+  metrics.setOnlineUsers(clients.size);
+}
+
+function removeClient(client) {
+  if (!client.user) return;
+  const set = clients.get(client.user);
+  if (set) {
+    set.delete(client);
+    if (!set.size) clients.delete(client.user);
+  }
+  client.user = null;
+  metrics.setOnlineUsers(clients.size);
 }
 
 function toMessage(row) {
-  return {
-    id: row.id,
-    from: row.sender,
-    to: row.receiver,
-    room: row.room_id,
-    text: row.text,
-    ts: row.ts,
-    seq: row.seq
-  };
+  return { id: row.id, from: row.sender, to: row.receiver, room: row.room_id,
+           text: row.text, ts: row.ts, seq: row.seq };
 }
 
-function handle(client, msg) {
-  const user = client.user;
-
-  if (msg.type === 'register') {
-    const ok = db.registerUser(msg.username, msg.password);
-    return send(client, ok
+const handlers = {
+  register(client, msg) {
+    send(client, db.registerUser(msg.username, msg.password)
       ? { type: 'register_ok' }
-      : { type: 'error', text: 'username taken' });
-  }
+      : { type: 'error', text: 'username taken or invalid' });
+  },
 
-  if (msg.type === 'login') {
-    if (!db.loginUser(msg.username, msg.password))
-      return send(client, { type: 'error', text: 'login failed' });
-    client.user = msg.username;
-    clients.set(msg.username, client);
-    return send(client, { type: 'login_ok', rooms: db.getRoomsOf(msg.username) });
-  }
+  login(client, msg) {
+    if (!db.loginUser(msg.username, msg.password)) return fail(client, 'login failed');
+    removeClient(client);               // re-login on the same socket: drop the old session
+    addClient(client, msg.username);
+    send(client, { type: 'login_ok', rooms: db.getRoomsOf(msg.username) });
+  },
 
-  if (!user) return send(client, { type: 'error', text: 'login first' });
+  sync(client, msg) {
+    const missed = db.getMessagesSince(client.user, Number(msg.lastSeq) || 0).map(toMessage);
+    send(client, { type: 'history', messages: missed });
+  },
 
-  if (msg.type === 'sync') {
-    const missed = db.getMessagesSince(user, msg.lastSeq || 0).map(toMessage);
-    return send(client, { type: 'history', messages: missed });
-  }
+  create_room(client, msg) {
+    const id = db.createRoom(msg.name, client.user);
+    send(client, id ? { type: 'room_ok', id } : { type: 'error', text: 'room name taken or invalid' });
+  },
 
-  if (msg.type === 'create_room') {
-    const id = db.createRoom(msg.name, user);
-    return send(client, id
-      ? { type: 'room_ok', id }
-      : { type: 'error', text: 'room name taken' });
-  }
-
-  if (msg.type === 'join_room') {
-    return send(client, db.joinRoom(msg.room, user)
+  join_room(client, msg) {
+    send(client, db.joinRoom(msg.room, client.user)
       ? { type: 'join_ok' }
-      : { type: 'error', text: 'already in room' });
-  }
+      : { type: 'error', text: 'cannot join room' });
+  },
 
-  if (msg.type === 'message') {
-    if (!msg.id || !msg.text || (!msg.to && !msg.room))
-      return send(client, { type: 'error', text: 'invalid message' });
+  // NEW: lets a client discover room ids so it can join them
+  list_rooms(client) {
+    send(client, { type: 'rooms', rooms: db.listRooms() });
+  },
 
-    if (msg.room && !db.getRoomMembers(msg.room).includes(user))
-      return send(client, { type: 'error', text: 'not in room' });
+  message(client, msg) {
+    const user = client.user;
+    const isRoom = Number.isInteger(msg.room);
 
-    const saved = db.saveMessage({
-      id: msg.id,
-      from: user,
-      to: msg.to,
-      room: msg.room,
-      text: msg.text,
-      ts: Date.now()
-    });
-    if (!saved) return send(client, { type: 'ack', id: msg.id });
+    if (!db.isValidId(msg.id) || typeof msg.text !== 'string' || !msg.text || msg.text.length > MAX_TEXT)
+      return fail(client, 'invalid message');
 
-    metrics.messageSent();
-    send(client, { type: 'ack', id: saved.id, seq: saved.seq });
-
-    const outgoing = { type: 'message', ...saved };
-    if (saved.room) {
-      for (const member of db.getRoomMembers(saved.room)) {
-        if (member === user) continue;
-        const target = clients.get(member);
-        if (target) send(target, outgoing);
-      }
-    } else {
-      const target = clients.get(saved.to);
-      if (target) send(target, outgoing);
+    let members = null;
+    if (isRoom) {
+      members = db.getRoomMembers(msg.room);
+      if (!members.includes(user)) return fail(client, 'not in room');
+    } else if (typeof msg.to !== 'string' || !db.userExists(msg.to)) {
+      return fail(client, 'unknown recipient');
     }
+
+    let result;
+    try {
+      result = db.saveMessage({
+        id: msg.id, from: user, to: isRoom ? undefined : msg.to,
+        room: isRoom ? msg.room : undefined, text: msg.text, ts: Date.now()
+      });
+    } catch {
+      return fail(client, 'server error, please retry'); // NOT acked, so the client will retry
+    }
+
+    const { message: saved, duplicate } = result;
+    send(client, { type: 'ack', id: saved.id, seq: saved.seq }); // duplicates get the original seq
+    if (duplicate) return;                                        // already delivered once, don't resend
+
+    metrics.messageSent(client.codec.name);
+    const outgoing = { type: 'message', ...saved };
+    const targets = isRoom ? members : [user, saved.to];          // sender's other devices included
+    for (const name of new Set(targets)) deliver(name, outgoing, client);
   }
+};
+
+const PUBLIC = new Set(['register', 'login']);
+
+function handle(client, msg) {
+  if (!msg || !Object.hasOwn(handlers, msg.type)) return fail(client, 'unknown type');
+  if (!PUBLIC.has(msg.type) && !client.user) return fail(client, 'login first');
+  handlers[msg.type](client, msg);
 }
 
 function startWsServer(server) {
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 
-  setInterval(() => {
+  // Heartbeat: ping every 15s, drop sockets that never answered; also measures RTT
+  const heartbeat = setInterval(() => {
     for (const s of wss.clients) {
-      if (!s.isAlive) {
-        s.terminate();
-        continue;
-      }
+      if (!s.isAlive) { s.terminate(); continue; }
       s.isAlive = false;
       s.pingSent = Date.now();
       s.ping();
@@ -127,21 +156,30 @@ function startWsServer(server) {
 
     socket.on('message', (raw) => {
       const data = raw.toString();
-      metrics.bytesReceived(Buffer.byteLength(data));
+      metrics.bytesReceived(codec.name, Buffer.byteLength(data));
       try {
         handle(client, codec.decode(data));
       } catch {
-        send(client, { type: 'error', text: 'bad request' });
+        fail(client, 'bad request');
       }
     });
 
+    // A closed socket only removes itself; everyone else is untouched
     socket.on('close', () => {
-      metrics.connectionClosed();
-      if (client.user && clients.get(client.user) === client) clients.delete(client.user);
+      metrics.connectionClosed(codec.name);
+      removeClient(client);
     });
 
     socket.on('error', () => socket.terminate());
   });
+
+  return {
+    close() {
+      clearInterval(heartbeat);
+      for (const s of wss.clients) s.terminate();
+      wss.close();
+    }
+  };
 }
 
 module.exports = { startWsServer };

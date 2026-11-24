@@ -31,6 +31,8 @@ const text = {
         return { type: 'message', id: p[1], to: p[2], text: p.slice(3).join('|') };
       case 'ROOM':
         return { type: 'message', id: p[1], room: Number(p[2]), text: p.slice(3).join('|') };
+      case 'LIST_ROOMS':
+        return { type: 'list_rooms' };
       default:
         throw new Error('unknown command');
     }
@@ -51,6 +53,8 @@ const text = {
         return [line(packet)];
       case 'history':
         return [...packet.messages.map(line), `HISTORY_END|${packet.messages.length}`];
+      case 'rooms':
+        return [`ROOMS|${packet.rooms.map((r) => `${r.id}:${r.name}`).join(',')}`];
       default:
         return [`ERR|${packet.text}`];
     }

@@ -43,6 +43,7 @@ function check(name, condition) {
   await wait(300);
   check('json client received text message', a.inbox.some((m) => m.includes('hi | alice')));
 
+  // offline + sync
   b.socket.close();
   await wait(300);
   a.socket.send(JSON.stringify({ type: 'message', id: 'o' + suffix, to: bob, text: 'while offline' }));
@@ -55,6 +56,42 @@ function check(name, condition) {
   check('offline message arrives on sync', b2.inbox.some((m) => m.endsWith('|while offline')));
   check('sync ends with marker', b2.inbox.some((m) => m.startsWith('HISTORY_END')));
 
+  // multi-device: second JSON socket for alice
+  const a2 = await connect('');
+  a2.socket.send(JSON.stringify({ type: 'login', username: alice, password: 'pw' }));
+  await wait(300);
+  b2.socket.send(`DM|x${suffix}|${alice}|to both devices`);
+  await wait(300);
+  check('both devices of alice got it',
+    a.inbox.some((m) => m.includes('to both devices')) &&
+    a2.inbox.some((m) => m.includes('to both devices')));
+
+  // rooms
+  a.socket.send(JSON.stringify({ type: 'create_room', name: 'room' + suffix }));
+  await wait(300);
+  const roomId = JSON.parse(a.inbox.find((m) => m.includes('room_ok'))).id;
+  b2.socket.send(`JOIN_ROOM|${roomId}`);
+  await wait(300);
+  a.socket.send(JSON.stringify({ type: 'message', id: 'rm' + suffix, room: roomId, text: 'room hello' }));
+  await wait(300);
+  check('room message reaches member', b2.inbox.some((m) => m.endsWith('|room hello')));
+
+  // same id from a different sender must not be dropped
+  b2.socket.send(`DM|m${suffix}|${alice}|same id other sender`);
+  await wait(300);
+  check('same id, different sender delivered', a.inbox.some((m) => m.includes('same id other sender')));
+
+  // unknown recipient
+  a.socket.send(JSON.stringify({ type: 'message', id: 'z' + suffix, to: 'nobody' + suffix, text: 'x' }));
+  await wait(200);
+  check('unknown recipient rejected', a.inbox.some((m) => m.includes('unknown recipient')));
+
+  // list rooms (NEW)
+  b2.socket.send('LIST_ROOMS');
+  await wait(200);
+  check('list rooms works', b2.inbox.some((m) => m.startsWith('ROOMS|') && m.includes('room' + suffix)));
+
+  // bad packet
   a.socket.send('not json');
   await wait(200);
   check('bad packet does not crash server', a.inbox.some((m) => m.includes('bad request')));
