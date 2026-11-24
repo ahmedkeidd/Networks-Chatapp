@@ -1,6 +1,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const crypto = require('crypto');
-const db = new DatabaseSync('chat.db');
+const path = require('path');
+const db = new DatabaseSync(path.join(__dirname, 'chat.db'));
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
