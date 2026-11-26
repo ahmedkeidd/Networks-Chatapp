@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- viewport-fit=cover lets the layout use the whole phone screen (notch-safe via CSS env()) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#128c7e">
+  <title>Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Small popup used for errors and info messages (filled in by app.js: toast()) -->
+  <div id="toast" role="status"></div>
+
+  <!-- ===== Screen 1: Login / Register ===== -->
+  <section id="auth" class="screen">
+    <form id="authForm" class="card" autocomplete="on">
+      <h1>Chat</h1>
+      <!-- Shows connection state and login/register errors -->
+      <p id="authStatus" class="status">Connecting…</p>
+      <input id="username" placeholder="Username" autocomplete="username" autocapitalize="none" maxlength="32" required>
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+      <div class="row">
+        <!-- Submit = log in; Register is a separate button so the form submit stays "login" -->
+        <button type="submit" id="loginBtn" class="primary">Log in</button>
+        <button type="button" id="registerBtn">Register</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ===== Screen 2: Main app (hidden until login succeeds) ===== -->
+  <section id="app" class="screen hidden">
+
+    <!-- Left pane: list of chats (one per user + one per group) -->
+    <aside id="listPane">
+      <header>
+        <div>
+          <strong id="me"></strong>
+          <!-- Green = connected and logged in, red = offline -->
+          <span id="conn" class="dot" title="connection"></span>
+        </div>
+        <div>
+          <button id="newBtn" class="icon" aria-label="New chat or group">＋</button>
+          <button id="logoutBtn" class="icon" aria-label="Log out">⎋</button>
+        </div>
+      </header>
+      <ul id="chatList"></ul>
+      <p id="emptyList" class="hint">No chats yet. Tap ＋ to start one.</p>
+    </aside>
+
+    <!-- Right pane: the open conversation. On phones it replaces the list. -->
+    <main id="chatPane">
+      <header>
+        <button id="backBtn" class="icon" aria-label="Back">←</button>
+        <strong id="chatTitle">Select a chat</strong>
+      </header>
+      <div id="messages"></div>
+      <form id="sendForm">
+        <input id="msgInput" placeholder="Type a message" autocomplete="off" maxlength="4000">
+        <button type="submit" class="primary">Send</button>
+      </form>
+    </main>
+  </section>
+
+  <!-- ===== Popup: start a chat, create a group, join a group ===== -->
+  <dialog id="dlg">
+    <h2>New chat</h2>
+    <form id="dmForm" class="row">
+      <input id="dmUser" placeholder="Username to chat with" autocapitalize="none" maxlength="32">
+      <button class="primary">Chat</button>
+    </form>
+    <h2>Create group</h2>
+    <form id="createForm" class="row">
+      <input id="roomName" placeholder="Group name" maxlength="32">
+      <button class="primary">Create</button>
+    </form>
+    <h2>Join group</h2>
+    <!-- Filled from the server's list_rooms reply (renderRoomList in app.js) -->
+    <ul id="roomList"></ul>
+    <button id="closeDlg" type="button">Close</button>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
