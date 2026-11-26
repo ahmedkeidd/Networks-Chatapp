@@ -1,12 +1,20 @@
+/* ===== Theme colors ===== */
 :root {
-  --green: #128c7e; --green-d: #0b6a5f; --bg: #ece5dd; --me: #dcf8c6;
-  --border: #d9d9d9; --text: #1b1b1b; --muted: #777;
+  --green: #128c7e;     /* main brand color (headers, buttons) */
+  --green-d: #0b6a5f;   /* darker green (pressed state, sender names) */
+  --bg: #ece5dd;        /* chat background */
+  --me: #dcf8c6;        /* my message bubble */
+  --border: #d9d9d9;
+  --text: #1b1b1b;
+  --muted: #777;
 }
+
+/* ===== Base ===== */
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--text); background: #f4f4f4; font-size: 16px;
+  color: var(--text); background: #f4f4f4; font-size: 16px; /* 16px stops iOS zooming into inputs */
 }
 .hidden { display: none !important; }
 button, input { font: inherit; }
@@ -23,9 +31,10 @@ button.primary:active { background: var(--green-d); }
 button.icon { background: transparent; border: 0; color: inherit; font-size: 1.3rem; padding: .3rem .6rem; }
 .row { display: flex; gap: .5rem; }
 
+/* dvh = real visible height on phones (excludes the browser's address bar) */
 .screen { height: 100dvh; }
 
-/* ----- auth ----- */
+/* ===== Login screen ===== */
 #auth { display: flex; align-items: center; justify-content: center; padding: 1rem; background: var(--green); }
 .card {
   width: 100%; max-width: 360px; background: #fff; padding: 1.5rem;
@@ -35,14 +44,17 @@ button.icon { background: transparent; border: 0; color: inherit; font-size: 1.3
 .status { margin: 0; text-align: center; font-size: .9rem; color: var(--muted); }
 .status.err { color: #c0392b; }
 
-/* ----- app layout: phone = one pane at a time, desktop = two panes ----- */
+/* ===== App layout =====
+   Phone: one pane at a time (list OR chat). Desktop: both side by side (see media query at the bottom). */
 #app { display: flex; background: #fff; }
 #listPane, #chatPane { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 #listPane { width: 100%; border-right: 1px solid var(--border); }
 #chatPane { display: none; width: 100%; background: var(--bg); }
+/* app.js adds .chat-open when a chat is selected, which swaps the panes on phones */
 #app.chat-open #listPane { display: none; }
 #app.chat-open #chatPane { display: flex; }
 
+/* Top bars; padding-top keeps content below the phone's notch/status bar */
 header {
   display: flex; align-items: center; justify-content: space-between; gap: .4rem;
   background: var(--green); color: #fff; padding: .6rem .7rem;
@@ -53,6 +65,7 @@ header {
 .dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; background: #e74c3c; margin-left: .4rem; }
 .dot.on { background: #2ecc71; }
 
+/* ===== Chat list ===== */
 #chatList, #roomList { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
 #chatList { flex: 1; }
 #chatList li, #roomList li {
@@ -64,29 +77,31 @@ header {
   flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: #b2dfdb;
   color: var(--green-d); display: flex; align-items: center; justify-content: center; font-weight: 700;
 }
-.info { flex: 1; min-width: 0; }
+.info { flex: 1; min-width: 0; }  /* min-width:0 lets the preview text truncate instead of overflowing */
 .name { font-weight: 600; }
 .preview { color: var(--muted); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.badge { background: var(--green); color: #fff; border-radius: 999px; font-size: .75rem; padding: .1rem .5rem; }
+.badge { background: var(--green); color: #fff; border-radius: 999px; font-size: .75rem; padding: .1rem .5rem; } /* unread count */
 .hint { color: var(--muted); text-align: center; padding: 1rem; margin: 0; }
 
+/* ===== Messages ===== */
 #messages { flex: 1; overflow-y: auto; padding: .8rem; display: flex; flex-direction: column; gap: .35rem; }
 .msg {
   max-width: 80%; padding: .45rem .65rem; border-radius: 12px; background: #fff;
-  align-self: flex-start; overflow-wrap: anywhere; white-space: pre-wrap;
+  align-self: flex-start; overflow-wrap: anywhere; white-space: pre-wrap;  /* long words wrap */
   box-shadow: 0 1px 1px rgba(0,0,0,.12);
 }
-.msg.mine { align-self: flex-end; background: var(--me); }
-.msg .who { font-size: .75rem; font-weight: 700; color: var(--green-d); }
-.msg .meta { font-size: .68rem; color: var(--muted); text-align: right; }
+.msg.mine { align-self: flex-end; background: var(--me); }   /* my messages on the right */
+.msg .who { font-size: .75rem; font-weight: 700; color: var(--green-d); }  /* sender name in groups */
+.msg .meta { font-size: .68rem; color: var(--muted); text-align: right; }  /* time + status tick */
 .msg.failed .meta { color: #c0392b; }
 
+/* Input bar; padding-bottom keeps it above the iPhone home indicator */
 #sendForm {
   display: flex; gap: .5rem; padding: .6rem; background: #f0f0f0;
   padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* ----- dialog ----- */
+/* ===== New chat / group popup ===== */
 dialog { border: 0; border-radius: 16px; width: min(92vw, 380px); padding: 1rem; }
 dialog::backdrop { background: rgba(0,0,0,.45); }
 dialog h2 { font-size: 1rem; margin: .8rem 0 .4rem; }
@@ -94,6 +109,7 @@ dialog h2 { font-size: 1rem; margin: .8rem 0 .4rem; }
 #roomList li { justify-content: space-between; padding: .5rem 0; }
 #closeDlg { width: 100%; margin-top: 1rem; }
 
+/* ===== Toast (temporary popup message) ===== */
 #toast {
   position: fixed; left: 50%; top: 1rem; transform: translateX(-50%); z-index: 99;
   background: #333; color: #fff; padding: .6rem 1rem; border-radius: 10px;
@@ -101,9 +117,10 @@ dialog h2 { font-size: 1rem; margin: .8rem 0 .4rem; }
 }
 #toast.show { opacity: 1; }
 
+/* ===== Desktop / wide screens: show list and chat side by side ===== */
 @media (min-width: 800px) {
   #listPane { width: 340px; flex: none; }
   #chatPane { display: flex; flex: 1; }
   #app.chat-open #listPane { display: flex; }
-  #backBtn { display: none; }
+  #backBtn { display: none; }   /* no back button needed when both panes are visible */
 }
