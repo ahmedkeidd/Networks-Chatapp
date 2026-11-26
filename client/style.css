@@ -1,0 +1,109 @@
+:root {
+  --green: #128c7e; --green-d: #0b6a5f; --bg: #ece5dd; --me: #dcf8c6;
+  --border: #d9d9d9; --text: #1b1b1b; --muted: #777;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text); background: #f4f4f4; font-size: 16px;
+}
+.hidden { display: none !important; }
+button, input { font: inherit; }
+input {
+  padding: .7rem .8rem; border: 1px solid var(--border); border-radius: 10px;
+  width: 100%; background: #fff;
+}
+button {
+  padding: .7rem 1rem; border: 1px solid var(--border); border-radius: 10px;
+  background: #fff; cursor: pointer;
+}
+button.primary { background: var(--green); color: #fff; border-color: var(--green); }
+button.primary:active { background: var(--green-d); }
+button.icon { background: transparent; border: 0; color: inherit; font-size: 1.3rem; padding: .3rem .6rem; }
+.row { display: flex; gap: .5rem; }
+
+.screen { height: 100dvh; }
+
+/* ----- auth ----- */
+#auth { display: flex; align-items: center; justify-content: center; padding: 1rem; background: var(--green); }
+.card {
+  width: 100%; max-width: 360px; background: #fff; padding: 1.5rem;
+  border-radius: 16px; display: flex; flex-direction: column; gap: .8rem;
+}
+.card h1 { margin: 0; color: var(--green); text-align: center; }
+.status { margin: 0; text-align: center; font-size: .9rem; color: var(--muted); }
+.status.err { color: #c0392b; }
+
+/* ----- app layout: phone = one pane at a time, desktop = two panes ----- */
+#app { display: flex; background: #fff; }
+#listPane, #chatPane { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+#listPane { width: 100%; border-right: 1px solid var(--border); }
+#chatPane { display: none; width: 100%; background: var(--bg); }
+#app.chat-open #listPane { display: none; }
+#app.chat-open #chatPane { display: flex; }
+
+header {
+  display: flex; align-items: center; justify-content: space-between; gap: .4rem;
+  background: var(--green); color: #fff; padding: .6rem .7rem;
+  padding-top: calc(.6rem + env(safe-area-inset-top, 0px));
+}
+#chatPane header { justify-content: flex-start; }
+#chatTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; background: #e74c3c; margin-left: .4rem; }
+.dot.on { background: #2ecc71; }
+
+#chatList, #roomList { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+#chatList { flex: 1; }
+#chatList li, #roomList li {
+  display: flex; align-items: center; gap: .7rem; padding: .8rem 1rem;
+  border-bottom: 1px solid #f0f0f0; cursor: pointer;
+}
+#chatList li.active { background: #f0f2f5; }
+.avatar {
+  flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: #b2dfdb;
+  color: var(--green-d); display: flex; align-items: center; justify-content: center; font-weight: 700;
+}
+.info { flex: 1; min-width: 0; }
+.name { font-weight: 600; }
+.preview { color: var(--muted); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { background: var(--green); color: #fff; border-radius: 999px; font-size: .75rem; padding: .1rem .5rem; }
+.hint { color: var(--muted); text-align: center; padding: 1rem; margin: 0; }
+
+#messages { flex: 1; overflow-y: auto; padding: .8rem; display: flex; flex-direction: column; gap: .35rem; }
+.msg {
+  max-width: 80%; padding: .45rem .65rem; border-radius: 12px; background: #fff;
+  align-self: flex-start; overflow-wrap: anywhere; white-space: pre-wrap;
+  box-shadow: 0 1px 1px rgba(0,0,0,.12);
+}
+.msg.mine { align-self: flex-end; background: var(--me); }
+.msg .who { font-size: .75rem; font-weight: 700; color: var(--green-d); }
+.msg .meta { font-size: .68rem; color: var(--muted); text-align: right; }
+.msg.failed .meta { color: #c0392b; }
+
+#sendForm {
+  display: flex; gap: .5rem; padding: .6rem; background: #f0f0f0;
+  padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ----- dialog ----- */
+dialog { border: 0; border-radius: 16px; width: min(92vw, 380px); padding: 1rem; }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h2 { font-size: 1rem; margin: .8rem 0 .4rem; }
+#roomList { max-height: 30vh; }
+#roomList li { justify-content: space-between; padding: .5rem 0; }
+#closeDlg { width: 100%; margin-top: 1rem; }
+
+#toast {
+  position: fixed; left: 50%; top: 1rem; transform: translateX(-50%); z-index: 99;
+  background: #333; color: #fff; padding: .6rem 1rem; border-radius: 10px;
+  opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw;
+}
+#toast.show { opacity: 1; }
+
+@media (min-width: 800px) {
+  #listPane { width: 340px; flex: none; }
+  #chatPane { display: flex; flex: 1; }
+  #app.chat-open #listPane { display: flex; }
+  #backBtn { display: none; }
+}
